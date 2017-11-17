@@ -1,9 +1,8 @@
 #Sapphire Setup
 Import-Module ".\SapphireDownloader"
 if (-not $?) {
-    log "Error" "SapphireDownloader module not loaded"
-    mailIt "$Script $ScriptVersion" $global:mailMessage
-    exit
+    Write-Host "Error: SapphireDownloader module not loaded"
+    Exit
 }
 $SDusername=""
 $SDpassword=""
@@ -19,8 +18,7 @@ $csv = $null
 try { $csv+=Get-SDDEMO_CUST_LIST } catch { write-host $error[0]; exit }
 $csv = ConvertFrom-Csv $csv
 if(-not $csv){
-    log "Error" "Student Data not downloaded"
-    mailIt "$Script $ScriptVersion" $global:mailMessage
+    Write-Host "Error: Student Data not downloaded"
     exit
 }
 $csv | Export-Csv -Path "students.csv" -NoTypeInformation
