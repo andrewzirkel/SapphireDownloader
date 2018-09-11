@@ -94,6 +94,43 @@ SDLogout | Out-Null
 return $csv
 }
 
+function get-SDMasterSchedule {
+[CmdletBinding()]
+param(
+[string]$CourseID=$null
+)
+
+login | Out-Null
+#use string because of repeated keys in form data
+$formfields = ""
+$formfields += "REPORT_CATEGORY_ID=1&"
+$formfields += "REPORT_CODE=MASTER_SCHEDULE&"
+$formfields += "SJC_REPORT_ID=MASTER_SCHEDULE&"
+$formfields += "Mode=Update&"
+$formfields += "COURSE_ORDER=COURSE_ID&"
+$formfields += "REPORT_FORMAT=CSV&"
+$formfields += "CRLF=Perl&"
+$formfields += "SCHOOL_ID=$SDschoold_id&"
+#display fields
+$formfields += "RptCol=COURSE_ID&"
+$formfields += "RptCol=SECTION_ID&"
+$formfields += "RptCol=COURSE_TITLE&"
+$formfields += "RptCol=TIMEPATTERN&"
+$formfields += "RptCol=DURATION_CODE&"
+$formfields += "RptCol=STAFF_NAME&"
+$formfields += "RptCol=STAFF_ID&"
+$formfields += "RptCol=ROOM_CODE&"
+$formfields += "RptCol=DEPARTMENT_CODE"
+$request=$null
+$request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Reports/Reports/MasterScheduleRpt.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
+$data = $request.Content
+$enc = [System.Text.Encoding]::ASCII
+$csv = $enc.GetString($data)
+#logout because stuff doesn't work when you switch buildings
+SDLogout | Out-Null
+return $csv
+}
+
 function Get-SDConnectEd {
 #for ConnectEd
 [CmdletBinding()]
@@ -187,12 +224,6 @@ $request = Invoke-WebRequest -Uri ($sapphireURL + $form.Action) -WebSession $scr
 if ($request.ParsedHtml.title -like "Sapphire Suite - Logon" ) {throw [System.Exception]"Login Failed`nMake sure to set Paramenters."}
 }
 
-Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd
+Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, get-SDMasterSchedule
 
-##MAIN##
-#Login
-#login
-#$data = Get-Class_Roster
-#write-host $data
-#Logout
-#logout
+
