@@ -41,6 +41,7 @@ Get Marking Periods for current building
 ###  Get-SDDictionary
 
 usage:  `Get-SDDictionary $DictionaryName`
+
 currently supported dictionaries are: Durations,DURATION_MP,DURATION_GROUPS
 
 ### Get-SDClassDurations
@@ -50,9 +51,11 @@ returns array of objects with Duration Code, start and end dates
 ### Get-SDUsers
 
 returns array of objects with sapphire users
+
 must have access to Admin > Security, Users and Staff > Users
 
 ### Set-SDStudentEmailAddress
 
 usage: `Set-SDStudentEmailAddress -StudentID $id -EMail $email`
+
 sets email address for student record
