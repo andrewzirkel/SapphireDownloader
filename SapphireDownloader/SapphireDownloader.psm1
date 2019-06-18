@@ -19,6 +19,9 @@ if($URL) {$script:sapphireURL=$URL}
 if($DistrictID) {$script:SDdistrict_id=$DistrictID}
 if($SchoolID) {$script:SDschoold_id = $SchoolID}
 if($SchoolYear) {$script:SDschool_year = $SchoolYear}
+
+#log out to make sure we are in the right building
+SDLogout
 }
 
 
@@ -184,21 +187,24 @@ param(
     SDLogout | Out-Null
     login | Out-Null
   }
-  #we have to hard code the columns :(
-  $dictcolumns = @{}
-  $dictcolumns['Durations']=@("DURATION_CODE","DURATION_DESC","DURATION_GROUP_CODE","STATE_COURSE_SEMESTER_CODE_RID","HIDDEN_FLG","ORDER_NO","ACTIVE_FLG")
-  $dictcolumns['DURATION_MP']=@("DURATION_CODE","MP_CODE","GRADES_FLG","COMMENTS_FLG")
-  $dictcolumns['DURATION_GROUPS']=@("DURATION_GROUP_CODE","DURATION_GROUP_DESC","NUMBER_OF_MARKING_PERIODS","ORDER_NO","ACTIVE_FLG")
-  if(-not $dictcolumns.ContainsKey($Dict)){}#exception}
+  ##we have to hard code the columns :(
+  #$dictcolumns = @{}
+  #$dictcolumns['Durations']=@("DURATION_CODE","DURATION_DESC","DURATION_GROUP_CODE","STATE_COURSE_SEMESTER_CODE_RID","HIDDEN_FLG","ORDER_NO","ACTIVE_FLG")
+  #$dictcolumns['DURATION_MP']=@("DURATION_CODE","MP_CODE","GRADES_FLG","COMMENTS_FLG")
+  #$dictcolumns['DURATION_GROUPS']=@("DURATION_GROUP_CODE","DURATION_GROUP_DESC","NUMBER_OF_MARKING_PERIODS","ORDER_NO","ACTIVE_FLG")
+  #if(-not $dictcolumns.ContainsKey($Dict)){}#exception}
 
+  #get form columns
+  $formfields = ""
+  $formfields += "CODEX_CODE=$Dict&"
+  $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Dictionaries/Main.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
   #use string because of repeated keys in form data
   $formfields = ""
   $formfields += "CODEX_CODE=$Dict&"
   $formfields += "LANGUAGE_CODE=en&"
   $formfields += "PERIOD_PATTERN_CODE=&"
-  foreach ($column in $dictcolumns[$Dict]) {
-    $formfields += "columns=$column&"
-  }
+  $request.ParsedHtml.forms['export_form'] | where type -eq "checkbox" | % { $formfields += "columns= " + $_.value + "&" }
+  #remove last &
   $formfields = $formfields.Substring(0,$formfields.Length-1)
   $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Dictionaries/exportAction.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
   $data = $request.Content
@@ -382,17 +388,98 @@ param(
   $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/StudentDemographicsAction.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
 }
 
+
+#Find first free transaction ID in Fees
+#parameters: array of form fields
+#returns: first free transaction ID as an integer
+function findFreeTransID($formfields) {
+  for ($i=1; $i -le 100; $i++) {
+    if ($formfields["TRANS_ID_$i"] -eq 0) {return $i}
+  }
+  return 0
+}
+
+function Add-SDStudentFee{
+[CmdletBinding()]
+param(
+[Parameter(Mandatory=$True)]
+[string]$StudentID,
+[string]$Date=$null,
+[Parameter(Mandatory=$True)]
+[string]$Category,
+[string]$Deposit=$null,
+[string]$Refund=$null,
+[string]$Fee=$null,
+[string]$Payment=$null,
+[string]$Note=$null
+)
+  login | Out-Null
+  $formfields = @{}
+  $formfields['STUDENT_ID']=$StudentID
+  $formfields['Action']='Read'
+  $formfields['filter_fee_code']=''
+  $formfields['filter_fee_type']=''
+  $formfields['filter_building']='S'
+  $formfields['filter_year']=$SDschool_year
+  $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/StudentDemographicsFees.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
+  if ($request.ParsedHtml.title -eq "Error Encountered") { 
+    write-host "$StudentID not found"
+    return $false
+  }
+  $form=$request.Forms['main_form']
+  if($form.Fields['Mode']-ne "Update") {return $false}
+  #construct update
+  #use parsedhtml to apply javascript
+  $form=$request.ParsedHtml.forms['main_form']
+  foreach ($element in $form) {
+    if ($element.disabled -eq $true) {continue}
+    if (($element.type -eq "checkbox") -and (!$element.checked)) {continue}
+    if ($element.name){
+      $formfields[$element.name]=$element.value
+    }
+  }
+  $transID=findFreeTransID $formfields
+  if ($transID -eq 0) {
+    write-host "Could not find free transaction id"
+    throw [System.Exception]"Could not find free transaction id."
+    return $false
+  }
+  $formfields['Action']='Save'
+  #translate Category to code using Student Fee Dictionary
+  $StudentFeeDictCSV=Get-SDDictionary -Dict "STUDENT_FEE_CATEGORIES" | ConvertFrom-Csv
+  $CategoryCode=$($StudentFeeDictCSV | where Description -eq $Category).code
+  if (-not $CategoryCode) {
+    if ($StudentFeeDictCSV | where Code -eq $Category) {
+      $CategoryCode=$Category
+    } else {
+      write-host "$Category not valid in STUDENT_FEE_CATEGORIES Dictionary"
+      return $false
+    }
+  }
+  $formfields["TRANS_CATEGORY_$transID"] = $CategoryCode
+  if($Date -ne $null) { $formfields["TRANS_DATE_$transID"] = $Date } else { $formfields["TRANS_DATE_$transID"] = get-date -UFormat "%m/%d/%Y" }
+  if($Deposit -ne $null) { $formfields["TRANS_DEPOSIT_$transID"] = $Deposit }
+  if($Refund -ne $null) { $formfields["TRANS_REFUND_$transID"] = $Refund}
+  if($Fee -ne $null) { $formfields["TRANS_FEE_$transID"] = $Fee}
+  if($Payment -ne $null) { $formfields["TRANS_PAYMENT_$transID"] = $Payment}
+  if($Note -ne $null ) { $formfields["TRANS_DESC_$transID"] = $Note}
+  $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/StudentDemographicsFeesAction.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
+}
+
 function SDLogout {
   Invoke-WebRequest -Uri ($sapphireURL + "/Gradebook/main.cfm?nossl=1&logout=1") -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' | Out-Null
 }
 
 function checkLoginParameters {
-if ((-Not $SDusername) -or (-Not $SDpassword) -or (-not $sapphireURL) -or (-not $SDdistrict_id) -or (-not $SDschoold_id) -or ($SDschool_year)) {return $false}
+if ((-Not $SDusername) -or (-Not $SDpassword) -or (-not $sapphireURL) -or (-not $SDdistrict_id) -or (-not $SDschoold_id) -or (-not $SDschool_year)) {return $false}
 return $True
 }
 
 function login {
-#
+#check login parameters are set
+if ( -not $(checkLoginParameters) ) {throw [System.Exception]"Login Parameters not set`nMake sure to set Paramenters."}
+#need to set tls 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 #check if we are already logged in
 $request = Invoke-WebRequest -Uri ($sapphireURL + "/Gradebook/main.cfm") -WebSession $script:my_session -UserAgent 'ReportRobot/1.0'
 if ($request.ParsedHtml.title -like "Select Product - Sapphire Suite" ) {return}
@@ -412,6 +499,6 @@ if ($request.ParsedHtml.title -like "Sapphire Suite - Logon" ) {throw [System.Ex
 $script:SDCurrentSchool=$SDschoold_id
 }
 
-Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers
+Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers, Add-SDStudentFee
 
 

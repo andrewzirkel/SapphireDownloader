@@ -59,3 +59,11 @@ must have access to Admin > Security, Users and Staff > Users
 usage: `Set-SDStudentEmailAddress -StudentID $id -EMail $email`
 
 sets email address for student record
+
+### Add-SDStudentFee
+
+usage: `Set-SDStudentEmailAddress -StudentID $id -Fee $fee -Category $categoryLongNameOrShortName`
+
+returns: $false on failure
+
+Adds a fee record for a student
