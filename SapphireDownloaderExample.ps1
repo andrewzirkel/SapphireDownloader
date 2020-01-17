@@ -22,3 +22,9 @@ if(-not $csv){
     exit
 }
 $csv | Export-Csv -Path "students.csv" -NoTypeInformation
+
+#Blackboard Connect report
+$data = Get-SDBlackboardConnect
+#returns 3 group columns so we need to remove header from string and add it back in
+$csvdata = $data.Split("`n",2)[1] | ConvertFrom-Csv -header "ReferenceCode","ContactType","FirstName","LastName","Grade","Language","Gender","HomePhone","WorkPhone","MobilePhone","HomePhoneAlt","WorkPhoneAlt","MobilePhoneAlt","SMSPhone","EmailAddress","EmailAddressAlt","Institution","AttendancePhone","AttendancePhoneAlt","Group1","Group2","Group3","HomeAddress","HomeAddress2","HomeCity","HomeState","HomeZip","Terminate"
+$csvdata | Export-Csv -Path ".\SDBlackboardConnect.csv" -NoTypeInformation

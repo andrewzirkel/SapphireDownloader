@@ -1,5 +1,5 @@
 #Sapphire Downloader
-#1.1
+#1.2
 
 function Set-SDParameters {
 [CmdletBinding()]
@@ -276,6 +276,33 @@ SDLogout | Out-Null
 return $csv
 }
 
+function Get-SDBlackboardConnect {
+#for BlackboardConnect
+[CmdletBinding()]
+param(
+#[Parameter(Mandatory=$False)]
+[string]$SchoolID
+)
+
+login | Out-Null
+$formfields = @{}
+$formfields['REPORT_CATEGORY_ID']=1
+$formfields['REPORT_CODE'] ="EXPORT_BLACKBOARD_CONNECT"
+$formfields['SJC_REPORT_ID'] = "EXPORT_BLACKBOARD_CONNECT"
+$formfields['Mode'] = "Update"
+$formfields['SCHOOL_ID'] = "$schoolID"
+#$formfields['STATUS_FLG'] = "E"
+#$formfields['GRADE_LEVEL'] = ""
+$formfields['FORMAT'] = "CSV"
+$formfields['CRLF'] = "Perl"
+$request=$null
+$request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Reports/Reports/ExBlackboardConnectRpt.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields -TimeoutSec 300000
+$data = $request.Content
+$enc = [System.Text.Encoding]::ASCII
+$csv = $enc.GetString($data)
+return $csv
+}
+
 function SDAnalysisLink {
   $request=$null
   $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/SapphireAnalysisLink.cfm?ContinueAnyway=1') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0'
@@ -349,6 +376,45 @@ function Get-SDUsers{
     $i++
   }
   return $SDUsers
+}
+
+#returns array of objects of additional teachers
+#must be in right building
+function Get-SDAdditionalTeachers{
+[CmdletBinding()]
+param(
+[Parameter(Mandatory=$True)]
+[string]$CourseID,
+[Parameter(Mandatory=$True)]
+[string]$SectionID
+)
+  login | Out-Null
+  #check we are in the right building
+  if ($SDCurrentSchool -ne $SDschoold_id){
+    SDLogout | Out-Null
+    login | Out-Null
+  }
+  $additionalTeachers=@()
+  $formfields = @{}
+  $formfields['COURSE_ID']=$CourseID
+  $formfields['SECTION_ID']=$SectionID
+  $formfields['Action']='Read'
+  $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/CourseSection.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
+  $form=$request.Forms['main_form']
+  if($form.Fields['Mode']-ne "Update") {return $false}
+  $form=$request.Forms['AdtlTeacher_Form']
+  $i=1
+  while($form.Fields.ContainsKey("OLD_STAFF_RID_" + $i)) {
+    $properties= [ordered]@{
+                 'STAFF_RID'=$form.Fields['OLD_STAFF_RID_' + $i];
+                 'SHOW_ON_SCHEDULE'=$form.Fields['OLD_SHOW_ON_SCHEDULE_' + $i];
+                 'GRADEBOOK_ACCESS'=$form.Fields['OLD_GRADEBOOK_ACCESS_' + $i];
+                 'NOTES'=$form.Fields['OLD_COURSE_SECTION_ADTL_TEACHERS_NOTES_' + $i];
+                 }
+    $i++
+    $additionalTeachers += New-Object -TypeName psobject -Property $properties
+  }
+  return $additionalTeachers
 }
 
 
@@ -467,7 +533,9 @@ param(
 }
 
 function SDLogout {
-  Invoke-WebRequest -Uri ($sapphireURL + "/Gradebook/main.cfm?nossl=1&logout=1") -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' | Out-Null
+#need to set tls 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Invoke-WebRequest -Uri ($sapphireURL + "/Gradebook/main.cfm?nossl=1&logout=1") -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' | Out-Null
 }
 
 function checkLoginParameters {
@@ -499,6 +567,6 @@ if ($request.ParsedHtml.title -like "Sapphire Suite - Logon" ) {throw [System.Ex
 $script:SDCurrentSchool=$SDschoold_id
 }
 
-Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers, Add-SDStudentFee
+Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers, Add-SDStudentFee, Get-SDAdditionalTeachers, Get-SDBlackboardConnect
 
 

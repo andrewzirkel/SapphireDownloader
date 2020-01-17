@@ -30,9 +30,14 @@ Get Custom Demographics report
 
 Get report writier report
 
-### Get-SDConnectEd
+### Get-SDConnectEd (deprecated)
 
 Get ConnectEd (School Messenger) Report
+
+### Get-SDBlackboardConnect
+Get Blackboard Connect report
+
+Note: Header contains duplicate entries, so if importing to csv you must change the header row, see example file.
 
 ### Get-SDMarkingPeriods
 
