@@ -1,5 +1,5 @@
 #Sapphire Downloader
-#1.2
+#1.3
 
 function Set-SDParameters {
 [CmdletBinding()]
@@ -38,6 +38,10 @@ SDLogout
 
 function Get-SDDEMO_CUST_LIST {
 #for DEMO_CUST_LIST
+[CmdletBinding()]
+param(
+[string]$AdditionalFields=$null
+)
   login | Out-Null
   #check we are in the right building
   if ($SDCurrentSchool -ne $SDschoold_id){
@@ -53,8 +57,11 @@ $formfields['GRADE_LEVEL'] = ""
 $formfields['FORMAT'] = "CSV"
 $formfields['CRLF'] = "Perl"
 $formfields['STDENRRPTCOL'] = "STUDENT_ID,FIRST_NAME,MIDDLE_NAME,LAST_NAME,ADDRESS_1,ADDRESS_CITY,ADDRESS_STATE,ADDRESS_ZIP,PHONE_NO,SSN,GENDER,HOME_ROOM,GRADE_LEVEL,BIRTH_DATE,SCHOOL_ID,ETHNICITY,EMAIL_ADDRESS"
+#$formfields['StdDemRptCol'] = "Name1"
+if ($AdditionalFields) {$formfields['STDENRRPTCOL'] += ',' + $AdditionalFields}
 # Change the column heading for a column by adding "column_name_of_the_data_you_want":{"DESCRIPTION":"heading_that_you_want"} to the list below.
 $formfields['JSON_STDENRRPTCOL'] = '{"STUDENT_ID":{"DESCRIPTION":"STUDENT_ID"},"HOME_ROOM":{"DESCRIPTION":"HOME_ROOM"},"GRADE_LEVEL":{"DESCRIPTION":"GRADE_LEVEL"}}'
+
 $request=$null
 $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Reports/Reports/DemoCustomListRpt.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
 $csv = $request.Content
