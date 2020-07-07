@@ -22,7 +22,7 @@ Note: Only School ID can be changed on the fly with `Set-SDParameters -SchoolID 
 
 Get Class Roster Report
 
-### Get-SDDEMO_CUST_LIST
+### Get-SDDEMO_CUST_LIST -AdditionalFields $AdditionalFields
 
 Get Custom Demographics report
 
