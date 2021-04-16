@@ -48,19 +48,28 @@ param(
     SDLogout | Out-Null
     login | Out-Null
   }
-$formfields = @{}
-$formfields['REPORT_CATEGORY_ID']=1
-$formfields['REPORT_CODE']='DEMO_CUST_LIST'
-$formfields['SCHOOL_ID'] = ""
-$formfields['STATUS_FLG'] = "E"
-$formfields['GRADE_LEVEL'] = ""
-$formfields['FORMAT'] = "CSV"
-$formfields['CRLF'] = "Perl"
-$formfields['STDENRRPTCOL'] = "STUDENT_ID,FIRST_NAME,MIDDLE_NAME,LAST_NAME,ADDRESS_1,ADDRESS_CITY,ADDRESS_STATE,ADDRESS_ZIP,PHONE_NO,SSN,GENDER,HOME_ROOM,GRADE_LEVEL,BIRTH_DATE,SCHOOL_ID,ETHNICITY,EMAIL_ADDRESS"
-#$formfields['StdDemRptCol'] = "Name1"
-if ($AdditionalFields) {$formfields['STDENRRPTCOL'] += ',' + $AdditionalFields}
+
+$formfields = ""
+$formfields+="REPORT_CATEGORY_ID=1&"
+$formfields+="REPORT_CODE=DEMO_CUST_LIST&"
+$formfields+="SCHOOL_ID=&"
+$formfields+="STATUS_FLG=E&"
+$formfields+="GRADE_LEVEL=&"
+$formfields+="FORMAT=CSV&"
+$formfields+="CRLF=Perl&"
+$STDENRRPTCOL = "STUDENT_ID,FIRST_NAME,MIDDLE_NAME,LAST_NAME,ADDRESS_1,ADDRESS_CITY,ADDRESS_STATE,ADDRESS_ZIP,PHONE_NO,SSN,GENDER,HOME_ROOM,GRADE_LEVEL,BIRTH_DATE,SCHOOL_ID,ETHNICITY,EMAIL_ADDRESS"
+if ($AdditionalFields) {
+  $AdditionalFields -split "," | % {
+    if ($_ -like "demo_field_id*") {
+      $formfields+="CusDemRptCol=$_&"
+    }else{
+      $STDENRRPTCOL+=",$_"
+    }
+  }
+}
+$formfields+="STDENRRPTCOL=" + $STDENRRPTCOL+"&"
 # Change the column heading for a column by adding "column_name_of_the_data_you_want":{"DESCRIPTION":"heading_that_you_want"} to the list below.
-$formfields['JSON_STDENRRPTCOL'] = '{"STUDENT_ID":{"DESCRIPTION":"STUDENT_ID"},"HOME_ROOM":{"DESCRIPTION":"HOME_ROOM"},"GRADE_LEVEL":{"DESCRIPTION":"GRADE_LEVEL"}}'
+$formfields+="JSON_STDENRRPTCOL={`"STUDENT_ID`":{`"DESCRIPTION`":`"STUDENT_ID`"},`"HOME_ROOM`":{`"DESCRIPTION`":`"HOME_ROOM`"},`"GRADE_LEVEL`":{`"DESCRIPTION`":`"GRADE_LEVEL`"}}"
 
 $request=$null
 $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/Reports/Reports/DemoCustomListRpt.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
