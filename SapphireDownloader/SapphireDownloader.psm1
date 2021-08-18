@@ -470,6 +470,53 @@ param(
   $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/StudentDemographicsAction.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
 }
 
+function Get-SDStudentFees{
+[CmdletBinding()]
+param(
+[Parameter(Mandatory=$True)]
+[string]$StudentID
+)
+  login | Out-Null
+  $formfields = @{}
+  $fees = @() #collection of custom objects
+  $formfields['STUDENT_ID']=$StudentID
+  $formfields['Action']='Read'
+  $formfields['filter_fee_code']=''
+  $formfields['filter_fee_type']=''
+  $formfields['filter_building']='S'
+  $formfields['filter_year']=$SDschool_year
+  $request = Invoke-WebRequest -Uri ($sapphireURL + '/Gradebook/CMS/StudentDemographicsFees.cfm') -WebSession $script:my_session -UserAgent 'ReportRobot/1.0' -Method POST -Body $formfields
+  if ($request.ParsedHtml.title -eq "Error Encountered") { 
+    write-host "$StudentID not found"
+    return $false
+  }
+  $form=$request.Forms['main_form']
+  if($form.Fields['Mode']-ne "Update") {return $false}
+  #construct update
+  #use parsedhtml to apply javascript
+  $form=$request.ParsedHtml.forms['main_form']
+  foreach ($element in $form) {
+    if ($element.disabled -eq $true) {continue}
+    if (($element.type -eq "checkbox") -and (!$element.checked)) {continue}
+    if ($element.name){
+      $formfields[$element.name]=$element.value
+    }
+  }
+  for ($i=1; $i -le 100; $i++) {
+    if ($formfields["TRANS_ID_$i"] -eq 0) {break}
+    $properties = [ordered]@{
+        'ID'=$formfields["TRANS_ID_$i"];
+        'DATE'=$formfields["TRANS_DATE_$i"];
+        'Category'=$formfields["TRANS_CATEGORY_$i"];
+        'Deposit'=$formfields["TRANS_Deposit_$i"];
+        'Refund'=$formfields["TRANS_REFUND_$i"];
+        'Fee'=$formfields["TRANS_FEE_$i"];
+        'Payment'=$formfields["TRANS_PAYMENT_$i"];
+        }
+    $fees+=New-Object -TypeName psobject -Property $properties
+  }
+  return $fees
+}
 
 #Find first free transaction ID in Fees
 #parameters: array of form fields
@@ -583,6 +630,6 @@ if ($request.ParsedHtml.title -like "Sapphire Suite - Logon" ) {throw [System.Ex
 $script:SDCurrentSchool=$SDschoold_id
 }
 
-Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers, Add-SDStudentFee, Get-SDAdditionalTeachers, Get-SDBlackboardConnect
+Export-ModuleMember -Function Set-SDParameters, Get-SDClass_Roster, Get-SDDEMO_CUST_LIST, Get-SDReport, Get-SDConnectEd, Get-SDMasterSchedule, Get-SDMarkingPeriods, Get-SDDictionary, Get-SDClassDurations, Set-SDStudentEmailAddress, Get-SDUsers, Add-SDStudentFee, Get-SDAdditionalTeachers, Get-SDBlackboardConnect, Get-SDStudentFees
 
 

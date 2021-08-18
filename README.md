@@ -59,6 +59,10 @@ returns array of objects with sapphire users
 
 must have access to Admin > Security, Users and Staff > Users
 
+### Get-SDStudentFees -StudentID $id
+
+returns array of objects with fees
+
 ### Set-SDStudentEmailAddress
 
 usage: `Set-SDStudentEmailAddress -StudentID $id -EMail $email`
